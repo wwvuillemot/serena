@@ -9,6 +9,8 @@
 set -eo pipefail
 
 PROJECTS_ROOT="${1:-$HOME/Projects}"
+SERENA_HOME="${SERENA_HOME:-$HOME/.serena}"
+LSP_SKIP_FILE="$SERENA_HOME/lsp-skip"
 
 ok()      { echo "  [✓] $*"; }
 skip()    { echo "  [–] $*"; }
@@ -16,12 +18,19 @@ warn()    { echo "  [!] $*"; }
 info()    { echo "  [·] $*"; }
 section() { echo; echo "── $* ──────────────────────────────────────────────"; }
 
+is_skipped() { [[ -f "$LSP_SKIP_FILE" ]] && grep -qx "$1" "$LSP_SKIP_FILE"; }
+mark_skipped() { mkdir -p "$(dirname "$LSP_SKIP_FILE")"; echo "$1" >> "$LSP_SKIP_FILE"; }
+
 detect_os() {
   if [[ "$(uname)" == "Darwin" ]]; then echo "macos"
   elif grep -qi microsoft /proc/version 2>/dev/null; then echo "wsl"
   else echo "linux"; fi
 }
 OS="$(detect_os)"
+
+# Ensure common tool-install directories are on PATH for detection
+export PATH="${GOBIN:-${GOPATH:-$HOME/go}/bin}:$HOME/.local/bin:$PATH"
+
 cmd_exists() { command -v "$1" &>/dev/null; }
 
 # ── Language definitions ───────────────────────────────────────────────────────
@@ -46,7 +55,7 @@ LANG_DEFS=(
   "nix        | Nix (nixd)                  | flake.nix *.nix                     | nixd                                      |         | nix-env -iA nixpkgs.nixd                                                                            | nix-env -iA nixpkgs.nixd                                                                              | Requires Nix"
   "zig        | Zig (ZLS)                   | *.zig build.zig                     | zls                                       |         | brew install zls                                                                                    | snap install zls --classic                                                                            | ZLS version must match Zig version"
   "php        | PHP (Intelephense)          | composer.json *.php                 | php                                       |         | bundled                                                                                             | bundled                                                                                               | Bundled; set INTELEPHENSE_LICENSE_KEY for premium"
-  "ansible    | Ansible                     | playbooks tasks roles site.yml      | ansible                                   | npm     | npm install -g @ansible/ansible-language-server                                                     | npm install -g @ansible/ansible-language-server                                                       | Requires Node.js"
+  "ansible    | Ansible                     | ansible.cfg galaxy.yml requirements.yml *.ansible.yml | ansible                             | npm     | npm install -g @ansible/ansible-language-server                                                     | npm install -g @ansible/ansible-language-server                                                       | Requires Node.js"
   "vue        | Vue (volar)                 | *.vue vite.config.ts vite.config.js | bundled                                   | npm     | npm install -g @vue/language-server                                                                 | npm install -g @vue/language-server                                                                   | Requires Node.js v18+"
   "solidity   | Solidity                    | *.sol foundry.toml hardhat.config.js | bundled                                  | npm     | npm install -g @nomicfoundation/solidity-language-server                                            | npm install -g @nomicfoundation/solidity-language-server                                              | Requires Node.js"
   "elm        | Elm                         | elm.json *.elm                      | elm                                       | npm     | npm install -g elm                                                                                  | npm install -g elm                                                                                    | Requires Node.js"
@@ -71,8 +80,12 @@ detect_language() {
 
 # Build list of detected entries needing action.
 # Store resolved fields directly — avoids re-parsing in the install loop.
-declare -a TO_INSTALL_LABELS TO_INSTALL_CMDS TO_INSTALL_NOTES
+declare -a TO_INSTALL_KEYS TO_INSTALL_LABELS TO_INSTALL_CMDS TO_INSTALL_NOTES
 declare -a BUNDLED_LABELS MISSING_PREREQ_LABELS ALREADY_LABELS
+
+SPIN_CHARS='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+_scan_i=0
+_scan_total=${#LANG_DEFS[@]}
 
 for i in "${!LANG_DEFS[@]}"; do
   def="${LANG_DEFS[$i]}"
@@ -84,6 +97,10 @@ for i in "${!LANG_DEFS[@]}"; do
   prereq="$(trim "$prereq")"
   notes="$(trim "$notes")"
   [[ "$OS" == "macos" ]] && install_cmd="$(trim "$mac")" || install_cmd="$(trim "$linux")"
+
+  ((_scan_i++)) || true
+  printf "\r  %s  Scanning languages... (%d/%d) %-30s" \
+    "${SPIN_CHARS:_scan_i%${#SPIN_CHARS}:1}" "$_scan_i" "$_scan_total" "$label"
 
   detect_language "$globs" || continue
 
@@ -99,16 +116,26 @@ for i in "${!LANG_DEFS[@]}"; do
     continue
   fi
 
+  # Previously declined
+  if is_skipped "$key"; then
+    skip "$label — previously skipped (clear $LSP_SKIP_FILE to re-prompt)"
+    continue
+  fi
+
   # Missing prerequisite
   if [[ -n "$prereq" ]] && ! cmd_exists "$prereq"; then
     MISSING_PREREQ_LABELS+=("$label (needs: $prereq)")
     continue
   fi
 
+  TO_INSTALL_KEYS+=("$key")
   TO_INSTALL_LABELS+=("$label")
   TO_INSTALL_CMDS+=("$install_cmd")
   TO_INSTALL_NOTES+=("$notes")
 done
+
+# Clear spinner line
+printf "\r  %-60s\r" " "
 
 # ── Report findings ───────────────────────────────────────────────────────────
 if [[ ${#ALREADY_LABELS[@]} -gt 0 ]]; then
@@ -128,28 +155,28 @@ if [[ ${#TO_INSTALL_LABELS[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# ── Confirm ───────────────────────────────────────────────────────────────────
+# ── Confirm & install individually ────────────────────────────────────────────
 echo
-echo "  Detected languages to install language servers for:"
+echo "  Detected languages needing language servers:"
 for l in "${TO_INSTALL_LABELS[@]}"; do echo "    • $l"; done
 echo
-read -r -p "  Install these? [Y/n] " answer
-answer="${answer:-Y}"
-if [[ ! "$answer" =~ ^[Yy] ]]; then
-  info "Skipped."
-  echo
-  exit 0
-fi
 
-# ── Install ───────────────────────────────────────────────────────────────────
-section "Installing"
-
-installed=0; failed=0
+installed=0; failed=0; skipped=0
 
 for i in "${!TO_INSTALL_LABELS[@]}"; do
+  key="${TO_INSTALL_KEYS[$i]}"
   label="${TO_INSTALL_LABELS[$i]}"
   install_cmd="${TO_INSTALL_CMDS[$i]}"
   notes="${TO_INSTALL_NOTES[$i]}"
+
+  read -r -p "  Install $label? [Y/n] " answer
+  answer="${answer:-Y}"
+  if [[ ! "$answer" =~ ^[Yy] ]]; then
+    mark_skipped "$key"
+    info "$label — skipped (won't ask again)"
+    ((skipped++)) || true
+    continue
+  fi
 
   info "$label..."
   if eval "$install_cmd" 2>&1 | sed 's/^/    /'; then
@@ -163,7 +190,8 @@ for i in "${!TO_INSTALL_LABELS[@]}"; do
 done
 
 echo
-echo "  Installed: $installed  |  Failed: $failed"
+echo "  Installed: $installed  |  Skipped: $skipped  |  Failed: $failed"
+[[ $skipped -gt 0 ]] && echo "  To re-prompt skipped languages, remove them from $LSP_SKIP_FILE"
 [[ $failed -gt 0 ]] && echo "  Re-run 'make install-lsp' after fixing prerequisites."
 [[ $installed -gt 0 ]] && echo "  Restart Claude Code / VS Code / Cursor to activate new language servers."
 echo

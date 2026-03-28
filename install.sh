@@ -106,21 +106,35 @@ fi
 section "Claude Code (global MCP)"
 
 if ! command -v claude &>/dev/null; then
-  warn "claude CLI not found — skipping Claude Code MCP setup."
-  warn "Install Claude Code, then run:"
-  warn "  claude mcp add -s user serena -- \$(which uvx) --from git+https://github.com/oraios/serena serena start-mcp-server --context claude-code --project-from-cwd"
+  info "Claude Code CLI not found — skipping."
 else
-  if [[ -z "$UVX_PATH" ]]; then
-    warn "uvx not found in PATH — cannot register Claude Code MCP. Re-run after fixing PATH."
+  _cc_already=false
+  if claude mcp list 2>/dev/null | grep -q serena; then
+    _cc_already=true
+  fi
+
+  if $_cc_already; then
+    read -r -p "  Serena already configured. Update Claude Code MCP entry? [y/N] " _cc_answer
+    _cc_answer="${_cc_answer:-N}"
   else
-    # Remove stale entry (may have been registered with wrong path) then re-add
-    claude mcp remove serena 2>/dev/null || true
-    claude mcp add -s user serena -- \
-      "$UVX_PATH" --from git+https://github.com/oraios/serena \
-      serena start-mcp-server \
-      --context claude-code \
-      --project-from-cwd
-    ok "Serena added to Claude Code global MCP (uvx: $UVX_PATH)."
+    read -r -p "  Install Serena into Claude Code? [Y/n] " _cc_answer
+    _cc_answer="${_cc_answer:-Y}"
+  fi
+
+  if [[ "$_cc_answer" =~ ^[Yy] ]]; then
+    if [[ -z "$UVX_PATH" ]]; then
+      warn "uvx not found in PATH — cannot register Claude Code MCP. Re-run after fixing PATH."
+    else
+      claude mcp remove serena 2>/dev/null || true
+      claude mcp add -s user serena -- \
+        "$UVX_PATH" --from git+https://github.com/oraios/serena \
+        serena start-mcp-server \
+        --context claude-code \
+        --project-from-cwd
+      ok "Serena added to Claude Code global MCP (uvx: $UVX_PATH)."
+    fi
+  else
+    info "Skipped Claude Code setup."
   fi
 fi
 
@@ -140,13 +154,27 @@ vscode_settings_path() {
 VSCODE_SETTINGS="$(vscode_settings_path)"
 
 if [[ ! -d "$(dirname "$VSCODE_SETTINGS")" ]]; then
-  warn "VS Code user directory not found — skipping VS Code setup."
-  warn "If VS Code is installed, manually merge: $REPO_DIR/templates/vscode-mcp-snippet.json"
-  warn "into: $VSCODE_SETTINGS"
+  info "VS Code user directory not found — skipping."
 else
-  # Use Python to safely merge the mcp.servers key into existing settings,
-  # substituting the resolved uvx path so Claude/IDEs don't need it in PATH.
-  python3 - "$VSCODE_SETTINGS" "$REPO_DIR/templates/vscode-mcp-snippet.json" "${UVX_PATH:-uvx}" <<'PYEOF'
+  _vs_already=false
+  if [[ -f "$VSCODE_SETTINGS" ]] && python3 -c \
+    "import json; d=json.load(open('$VSCODE_SETTINGS')); exit(0 if 'serena' in d.get('mcp',{}).get('servers',{}) else 1)" 2>/dev/null; then
+    _vs_already=true
+  fi
+
+  if $_vs_already; then
+    read -r -p "  Serena already configured. Update VS Code MCP entry? [y/N] " _vs_answer
+    _vs_answer="${_vs_answer:-N}"
+  else
+    read -r -p "  Install Serena into VS Code? [Y/n] " _vs_answer
+    _vs_answer="${_vs_answer:-Y}"
+  fi
+
+  if [[ "$_vs_answer" =~ ^[Yy] ]]; then
+    if [[ -z "$UVX_PATH" ]]; then
+      warn "uvx not found in PATH — cannot configure VS Code. Re-run after fixing PATH."
+    else
+      python3 - "$VSCODE_SETTINGS" "$REPO_DIR/templates/vscode-mcp-snippet.json" "$UVX_PATH" <<'PYEOF'
 import json, sys, os
 
 settings_path = sys.argv[1]
@@ -166,7 +194,6 @@ else:
 with open(snippet_path) as f:
     snippet = json.load(f)
 
-# Substitute resolved uvx path into the command field
 for server in snippet.get("mcp", {}).get("servers", {}).values():
     if server.get("command") == "uvx":
         server["command"] = uvx_path
@@ -184,6 +211,10 @@ with open(settings_path, "w") as f:
 
 print(f"  [✓] Merged serena MCP entry into {settings_path} (uvx: {uvx_path})")
 PYEOF
+    fi
+  else
+    info "Skipped VS Code setup."
+  fi
 fi
 
 # WSL note: if using VS Code Remote-WSL the settings live on the Windows side
@@ -218,12 +249,28 @@ section "Cursor IDE (~/.cursor/mcp.json)"
 CURSOR_MCP="$HOME/.cursor/mcp.json"
 CURSOR_TEMPLATE="$REPO_DIR/templates/cursor-mcp.json"
 
-mkdir -p "$HOME/.cursor"
+if [[ ! -d "$HOME/.cursor" ]]; then
+  info "Cursor IDE not found — skipping."
+else
+  _cur_already=false
+  if [[ -f "$CURSOR_MCP" ]] && python3 -c \
+    "import json; d=json.load(open('$CURSOR_MCP')); exit(0 if 'serena' in d.get('mcpServers',{}) else 1)" 2>/dev/null; then
+    _cur_already=true
+  fi
 
-if [[ -f "$CURSOR_MCP" ]]; then
-  # Merge serena entry without clobbering other servers,
-  # substituting the resolved uvx path.
-  python3 - "$CURSOR_MCP" "$CURSOR_TEMPLATE" "${UVX_PATH:-uvx}" <<'PYEOF'
+  if $_cur_already; then
+    read -r -p "  Serena already configured. Update Cursor MCP entry? [y/N] " _cur_answer
+    _cur_answer="${_cur_answer:-N}"
+  else
+    read -r -p "  Install Serena into Cursor? [Y/n] " _cur_answer
+    _cur_answer="${_cur_answer:-Y}"
+  fi
+
+  if [[ "$_cur_answer" =~ ^[Yy] ]]; then
+    if [[ -z "$UVX_PATH" ]]; then
+      warn "uvx not found in PATH — cannot configure Cursor. Re-run after fixing PATH."
+    elif [[ -f "$CURSOR_MCP" ]]; then
+      python3 - "$CURSOR_MCP" "$CURSOR_TEMPLATE" "$UVX_PATH" <<'PYEOF'
 import json, sys, os, shutil
 existing_path, template_path, uvx_path = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(existing_path) as f:
@@ -248,9 +295,8 @@ with open(existing_path, "w") as f:
     f.write("\n")
 print(f"  [✓] Merged serena into {existing_path} (uvx: {uvx_path})")
 PYEOF
-else
-  # Write template with resolved uvx path directly
-  python3 - "$CURSOR_TEMPLATE" "$CURSOR_MCP" "${UVX_PATH:-uvx}" <<'PYEOF'
+    else
+      python3 - "$CURSOR_TEMPLATE" "$CURSOR_MCP" "$UVX_PATH" <<'PYEOF'
 import json, sys
 template_path, out_path, uvx_path = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(template_path) as f:
@@ -263,10 +309,101 @@ with open(out_path, "w") as f:
     f.write("\n")
 print(f"  [✓] Created {out_path} (uvx: {uvx_path})")
 PYEOF
+    fi
+  else
+    info "Skipped Cursor setup."
+  fi
 fi
 
 # -----------------------------------------------------------------------------
-# 6. Make scripts executable
+# 6. Claude Desktop — claude_desktop_config.json
+# -----------------------------------------------------------------------------
+section "Claude Desktop"
+
+claude_desktop_app_installed() {
+  case "$OS" in
+    macos) [[ -d "/Applications/Claude.app" ]] ;;
+    *)     return 1 ;;
+  esac
+}
+
+claude_desktop_config_path() {
+  case "$OS" in
+    macos) echo "$HOME/Library/Application Support/Claude/claude_desktop_config.json" ;;
+    *)     echo "" ;;
+  esac
+}
+
+if claude_desktop_app_installed; then
+  CLAUDE_DESKTOP_CONFIG="$(claude_desktop_config_path)"
+  CLAUDE_DESKTOP_TEMPLATE="$REPO_DIR/templates/claude-desktop-mcp.json"
+
+  # Check if already installed
+  _already_installed=false
+  if [[ -f "$CLAUDE_DESKTOP_CONFIG" ]] && python3 -c \
+    "import json,sys; d=json.load(open(sys.argv[1])); exit(0 if 'serena' in d.get('mcpServers',{}) else 1)" \
+    "$CLAUDE_DESKTOP_CONFIG" 2>/dev/null; then
+    _already_installed=true
+  fi
+
+  if $_already_installed; then
+    read -r -p "  Serena already configured. Update Claude Desktop MCP entry? [y/N] " _cd_answer
+    _cd_answer="${_cd_answer:-N}"
+  else
+    read -r -p "  Install Serena into Claude Desktop? [Y/n] " _cd_answer
+    _cd_answer="${_cd_answer:-Y}"
+  fi
+
+  if [[ "$_cd_answer" =~ ^[Yy] ]]; then
+    if [[ -z "$UVX_PATH" ]]; then
+      warn "uvx not found in PATH — cannot configure Claude Desktop. Re-run after fixing PATH."
+    else
+      python3 - "$CLAUDE_DESKTOP_CONFIG" "$CLAUDE_DESKTOP_TEMPLATE" "$UVX_PATH" <<'PYEOF'
+import json, sys, os, shutil
+
+config_path, template_path, uvx_path = sys.argv[1], sys.argv[2], sys.argv[3]
+
+if os.path.exists(config_path):
+    with open(config_path) as f:
+        try:
+            config = json.load(f)
+        except json.JSONDecodeError:
+            print(f"  [!] Could not parse {config_path} — skipping Claude Desktop setup.")
+            sys.exit(0)
+else:
+    config = {}
+
+with open(template_path) as f:
+    template = json.load(f)
+
+# Substitute resolved uvx path
+for server in template.get("mcpServers", {}).values():
+    if server.get("command") == "uvx":
+        server["command"] = uvx_path
+
+config.setdefault("mcpServers", {})
+config["mcpServers"].update(template["mcpServers"])
+
+if os.path.exists(config_path):
+    shutil.copy2(config_path, config_path + ".bak")
+
+with open(config_path, "w") as f:
+    json.dump(config, f, indent=2)
+    f.write("\n")
+
+print(f"  [✓] Merged serena into {config_path} (uvx: {uvx_path})")
+print(f"  [!] Restart Claude Desktop to pick up the new MCP server.")
+PYEOF
+    fi
+  else
+    info "Skipped Claude Desktop setup."
+  fi
+else
+  info "Claude Desktop not found — skipping."
+fi
+
+# -----------------------------------------------------------------------------
+# 7. Make scripts executable
 # -----------------------------------------------------------------------------
 section "Script permissions"
 chmod +x "$REPO_DIR/scripts/setup-project.sh"
@@ -282,12 +419,13 @@ echo "Serena is configured for:"
 echo "  • Claude Code CLI  (global MCP, auto-detects project from cwd)"
 echo "  • VS Code          (user settings, uses \${workspaceFolder})"
 echo "  • Cursor IDE       (~/.cursor/mcp.json, auto-detects project from cwd)"
+echo "  • Claude Desktop   (claude_desktop_config.json, if installed)"
 echo
 echo "Serena docs: https://oraios.github.io/serena/01-about/000_intro.html"
 echo
 
 # -----------------------------------------------------------------------------
-# 7. Language servers
+# 8. Language servers
 # -----------------------------------------------------------------------------
 section "Language servers"
 echo

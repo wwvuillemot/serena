@@ -71,6 +71,22 @@ check: ## Verify Serena is wired up correctly across all clients
 		echo "  [!] ~/.cursor/mcp.json not found (Cursor not installed?)"; \
 	fi
 	@echo
+	@echo "── Claude Desktop ──────────────────────────────────"
+	@CLAUDE_DESKTOP_CONFIG=""; \
+	if [[ "$$(uname)" == "Darwin" ]]; then \
+		CLAUDE_DESKTOP_CONFIG="$(HOME)/Library/Application Support/Claude/claude_desktop_config.json"; \
+	fi; \
+	if [[ -n "$$CLAUDE_DESKTOP_CONFIG" ]] && [[ -d "/Applications/Claude.app" ]]; then \
+		if [[ -f "$$CLAUDE_DESKTOP_CONFIG" ]] && python3 -c \
+			"import json; d=json.load(open('$$CLAUDE_DESKTOP_CONFIG')); exit(0 if 'serena' in d.get('mcpServers',{}) else 1)" 2>/dev/null; then \
+			echo "  [✓] serena present in Claude Desktop config"; \
+		else \
+			echo "  [✗] serena missing from Claude Desktop — run: make setup"; \
+		fi; \
+	else \
+		echo "  [!] Claude Desktop not installed"; \
+	fi
+	@echo
 	@echo "── VS Code (user settings.json) ────────────────────"
 	@VSCODE_SETTINGS=""; \
 	if [[ "$$(uname)" == "Darwin" ]]; then \
