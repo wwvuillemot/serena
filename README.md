@@ -1,6 +1,6 @@
 # serena-setup
 
-Portable, idempotent setup for [Serena](https://github.com/oraios/serena) — a semantic code-intelligence MCP server that gives AI tools (Claude Code, Cursor, VS Code, etc.) IDE-like symbol navigation, refactoring, and code understanding across 40+ languages.
+Portable, idempotent setup for [Serena](https://github.com/oraios/serena) — a semantic code-intelligence MCP server that gives AI tools (Claude Code, Claude Desktop, Cursor, VS Code) IDE-like symbol navigation, refactoring, and code understanding across 40+ languages.
 
 ## Quick start
 
@@ -14,12 +14,12 @@ make setup
 
 | Command | Description |
 |---|---|
-| `make setup` | Full bootstrap: `uv`, `fzf`, config, all clients, then language servers |
-| `make install-lsp` | Scan repos, detect languages, interactively install language servers |
+| `make setup` | Full bootstrap: `uv`, config, all detected clients, then language servers |
+| `make install-lsp` | Scan repos, detect languages, prompt per language to install servers |
 | `make setup-projects` | Add `.serena/project.yml` to every project under `~/Projects` |
 | `make setup-project PATH=…` | Add `.serena/project.yml` to one project |
 | `make update` | Pull latest changes and re-run `make setup` |
-| `make check` | Verify Serena is correctly wired in all three clients |
+| `make check` | Verify Serena is correctly wired in all detected clients |
 | `make cache-clean` | Force `uvx` to re-download Serena on next use |
 | `make help` | Show all targets |
 
@@ -34,13 +34,14 @@ make install-lsp PROJECTS_ROOT=/some/other/path
 ## What `make setup` does
 
 1. Installs `uv` (Python package manager) if missing
-2. Installs `fzf` (interactive menu) if missing — brew, apt/dnf/pacman, or git clone fallback
-3. Pre-fetches Serena via `uvx` so first use is fast
-4. Copies `serena_config.yml` → `~/.serena/serena_config.yml`
-5. Registers Serena in **Claude Code** global MCP (`-s user`)
-6. Merges Serena into **VS Code** user `settings.json`
-7. Merges Serena into **Cursor** `~/.cursor/mcp.json`
-8. Runs `make install-lsp` — scans `~/Projects`, detects languages, and presents an interactive menu to install language servers
+2. Pre-fetches Serena via `uvx` so first use is fast
+3. Copies `serena_config.yml` → `~/.serena/serena_config.yml`
+4. For each detected client, prompts to install or update:
+   - **Claude Code** — global MCP (`-s user`, `--project-from-cwd`)
+   - **VS Code** — dedicated `mcp.json` (also cleans up stale `settings.json` entries)
+   - **Cursor** — `~/.cursor/mcp.json`
+   - **Claude Desktop** — `claude_desktop_config.json` (macOS only)
+5. Runs `make install-lsp` — scans `~/Projects`, detects languages, and prompts per language to install servers
 
 Verify everything after setup:
 
@@ -54,10 +55,10 @@ make check
 
 `make install-lsp` (also called automatically by `make setup`):
 
-- Scans all repos under `~/Projects` for language indicators (`go.mod`, `Cargo.toml`, `tsconfig.json`, `*.py`, etc.)
-- Marks detected languages with `◆` and lists them first
+- Scans all repos under `~/Projects` for language indicators (`go.mod`, `Cargo.toml`, `tsconfig.json`, `*.py`, etc.) with a progress spinner
 - Shows install status — already-installed and bundled servers are labelled
-- Uses `fzf` for the selection menu (Tab to toggle, Ctrl-A to select all, Enter to confirm)
+- Prompts individually per language (`Install Go (gopls)? [Y/n]`)
+- Declining a language records it in `~/.serena/lsp-skip` so it won't be asked again (delete the file to re-prompt)
 - Checks prerequisites before installing (e.g. won't attempt `gopls` if `go` isn't found)
 
 Supported languages: Go, Rust, Python (pyright), TypeScript/JS, Ruby, C/C++, C#/F#, Java, Scala, Kotlin, Haskell, Elixir, Erlang, OCaml, R, Fortran, Nix, Zig, PHP, Ansible, Vue, Solidity, Elm, Lua, Bash/Shell.
@@ -72,7 +73,8 @@ Supported languages: Go, Rust, Python (pyright), TypeScript/JS, Ruby, C/C++, C#/
 | `install.sh` | Called by `make setup`; idempotent bootstrap |
 | `serena_config.yml` | Global Serena config template, copied to `~/.serena/` at setup |
 | `templates/cursor-mcp.json` | Cursor global MCP config (`~/.cursor/mcp.json`) |
-| `templates/vscode-mcp-snippet.json` | VS Code MCP entry merged into user `settings.json` |
+| `templates/claude-desktop-mcp.json` | Claude Desktop MCP config (`claude_desktop_config.json`) |
+| `templates/vscode-mcp-snippet.json` | VS Code MCP entry merged into user `mcp.json` |
 | `scripts/install-language-servers.sh` | Interactive language server installer |
 | `scripts/setup-project.sh` | Creates `.serena/project.yml` in a single project |
 | `scripts/setup-all-projects.sh` | Runs `setup-project.sh` across every project under `~/Projects` |
@@ -87,7 +89,8 @@ Serena itself is **not** installed locally — it runs on demand via `uvx`.
 - `make` — ships with macOS (Xcode CLT) and all Linux distros
 - `python3` — for JSON merging; ships with macOS and most Linux distros
 - For **Claude Code**: `claude` CLI installed and authenticated
-- `uv` and `fzf` are installed automatically by `make setup`
+- For **Claude Desktop**: `/Applications/Claude.app` installed (macOS only)
+- `uv` is installed automatically by `make setup`
 
 ---
 
@@ -131,7 +134,7 @@ claude
 
 ### VS Code
 
-Merged into your **user** `settings.json` with `${workspaceFolder}` — activates automatically for any folder you open. No per-project config needed.
+Written to the dedicated **user** `mcp.json` with `${workspaceFolder}` — activates automatically for any folder you open. No per-project config needed.
 
 For a per-workspace override, create `.vscode/mcp.json` in the project:
 
@@ -150,9 +153,15 @@ For a per-workspace override, create `.vscode/mcp.json` in the project:
 }
 ```
 
+> **Note:** VS Code previously used `mcp.servers` inside `settings.json`. That location is deprecated. `make setup` automatically migrates to the dedicated `mcp.json` and removes the stale entry from `settings.json`.
+
 ### Cursor
 
 Configured globally via `~/.cursor/mcp.json`. Verify: **Cursor Settings → MCP** → `serena` should show as connected.
+
+### Claude Desktop (macOS)
+
+Configured via `~/Library/Application Support/Claude/claude_desktop_config.json`. `make setup` detects the app and prompts to install. Restart Claude Desktop after setup to activate.
 
 ---
 
@@ -204,7 +213,7 @@ make update
 make cache-clean
 ```
 
-To pin to a specific Serena version, replace the `--from` URL in `templates/cursor-mcp.json`, `templates/vscode-mcp-snippet.json`, and the `claude mcp add` line in `install.sh`:
+To pin to a specific Serena version, replace the `--from` URL in `templates/cursor-mcp.json`, `templates/claude-desktop-mcp.json`, `templates/vscode-mcp-snippet.json`, and the `claude mcp add` line in `install.sh`:
 
 ```
 --from git+https://github.com/oraios/serena@<commit-sha>
@@ -236,11 +245,13 @@ make setup           # re-registers with correct absolute uvx path
 
 The most common cause is `uvx` not being in the PATH that Claude Code uses when spawning subprocesses. `make setup` resolves and bakes in the full path automatically.
 
-**VS Code settings not updated**
+**VS Code MCP not working**
 
-Manually merge `templates/vscode-mcp-snippet.json` into:
-- macOS: `~/Library/Application Support/Code/User/settings.json`
-- Linux/WSL: `~/.config/Code/User/settings.json`
+Manually copy `templates/vscode-mcp-snippet.json` to:
+- macOS: `~/Library/Application Support/Code/User/mcp.json`
+- Linux/WSL: `~/.config/Code/User/mcp.json`
+
+If you see "MCP servers should no longer be configured in user settings", run `make setup` — it will migrate to the dedicated `mcp.json` and clean up `settings.json` automatically.
 
 **Onboarding runs every time**
 
