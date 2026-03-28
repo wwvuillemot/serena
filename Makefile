@@ -39,10 +39,8 @@ check: ## Verify Serena is wired up correctly across all clients
 	fi
 	@echo
 	@echo "── ~/.serena/serena_config.yml ─────────────────────"
-	@if [[ -L "$(HOME)/.serena/serena_config.yml" ]]; then \
-		echo "  [✓] Symlink: $$(readlink $(HOME)/.serena/serena_config.yml)"; \
-	elif [[ -f "$(HOME)/.serena/serena_config.yml" ]]; then \
-		echo "  [!] File exists but is not a symlink — run: make setup"; \
+	@if [[ -f "$(HOME)/.serena/serena_config.yml" ]]; then \
+		echo "  [✓] $(HOME)/.serena/serena_config.yml exists"; \
 	else \
 		echo "  [✗] Missing — run: make setup"; \
 	fi

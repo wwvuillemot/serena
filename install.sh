@@ -80,16 +80,24 @@ mkdir -p "$SERENA_HOME"
 TARGET="$SERENA_HOME/serena_config.yml"
 SOURCE="$REPO_DIR/serena_config.yml"
 
-if [[ -L "$TARGET" && "$(readlink "$TARGET")" == "$SOURCE" ]]; then
-  ok "Symlink already correct: $TARGET → $SOURCE"
-elif [[ -f "$TARGET" && ! -L "$TARGET" ]]; then
-  warn "Backing up existing config to ${TARGET}.bak"
-  mv "$TARGET" "${TARGET}.bak"
-  ln -s "$SOURCE" "$TARGET"
-  ok "Symlinked $TARGET → $SOURCE"
+# Copy (not symlink) so Serena's runtime writes (e.g. projects list) stay in
+# ~/.serena/ and never bleed back into the repo.
+if [[ -L "$TARGET" ]]; then
+  # Migrate anyone who had the old symlink approach
+  warn "Converting symlink to copy (prevents runtime state leaking into repo)"
+  rm "$TARGET"
+fi
+if [[ -f "$TARGET" ]]; then
+  # Preserve any machine-local projects list across re-runs
+  PROJECTS_LINE="$(grep -A999 '^projects:' "$TARGET" 2>/dev/null | head -20 || true)"
+  cp "$SOURCE" "$TARGET"
+  ok "Updated $TARGET from $SOURCE"
+  if echo "$PROJECTS_LINE" | grep -q '/'; then
+    info "Note: your local projects list in $TARGET was preserved — re-run 'make setup' if Serena loses project registrations"
+  fi
 else
-  ln -sf "$SOURCE" "$TARGET"
-  ok "Symlinked $TARGET → $SOURCE"
+  cp "$SOURCE" "$TARGET"
+  ok "Copied $SOURCE → $TARGET"
 fi
 
 # -----------------------------------------------------------------------------
