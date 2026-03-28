@@ -276,7 +276,7 @@ echo "  • VS Code          (user settings, uses \${workspaceFolder})"
 echo "  • Cursor IDE       (~/.cursor/mcp.json, auto-detects project from cwd)"
 echo
 echo "Optional next steps:"
-echo "  • Set up individual projects:    bash $REPO_DIR/scripts/setup-project.sh <path>"
-echo "  • Set up all ~/Projects at once: bash $REPO_DIR/scripts/setup-all-projects.sh"
+echo "  • Set up individual projects:    make setup-project PATH=~/Projects/my-repo"
+echo "  • Set up all ~/Projects at once: make setup-projects"
 echo
 echo "Serena docs: https://oraios.github.io/serena/01-about/000_intro.html"
