@@ -66,37 +66,6 @@ fi
 # Resolve uvx path once — used by all client config sections below
 UVX_PATH="$(which uvx 2>/dev/null || echo "")"
 
-# -----------------------------------------------------------------------------
-# 2. Check / install fzf (used by install-language-servers.sh)
-# -----------------------------------------------------------------------------
-section "fzf (interactive menu)"
-
-if command -v fzf &>/dev/null; then
-  ok "fzf is already installed: $(fzf --version)"
-else
-  info "Installing fzf..."
-  if [[ "$OS" == "macos" ]]; then
-    if command -v brew &>/dev/null; then
-      brew install fzf
-    else
-      git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install --bin
-      export PATH="$HOME/.fzf/bin:$PATH"
-    fi
-  elif [[ "$OS" == "wsl" ]] || [[ "$OS" == "linux" ]]; then
-    if command -v apt-get &>/dev/null; then
-      sudo apt-get install -y fzf
-    elif command -v dnf &>/dev/null; then
-      sudo dnf install -y fzf
-    elif command -v pacman &>/dev/null; then
-      sudo pacman -S --noconfirm fzf
-    else
-      git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && ~/.fzf/install --bin
-      export PATH="$HOME/.fzf/bin:$PATH"
-    fi
-  fi
-  command -v fzf &>/dev/null && ok "fzf installed: $(fzf --version)" || warn "fzf install failed — language server menu will use numbered fallback"
-fi
-
 # Pre-cache Serena so first use is fast
 info "Pre-fetching Serena via uvx (this may take a moment on first run)..."
 uvx --from git+https://github.com/oraios/serena serena --help &>/dev/null && ok "Serena cached" || warn "Pre-fetch failed — will download on first use"
