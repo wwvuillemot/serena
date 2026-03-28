@@ -63,6 +63,9 @@ else
   fi
 fi
 
+# Resolve uvx path once — used by all client config sections below
+UVX_PATH="$(which uvx 2>/dev/null || echo "")"
+
 # Pre-cache Serena so first use is fast
 info "Pre-fetching Serena via uvx (this may take a moment on first run)..."
 uvx --from git+https://github.com/oraios/serena serena --help &>/dev/null && ok "Serena cached" || warn "Pre-fetch failed — will download on first use"
@@ -97,18 +100,19 @@ section "Claude Code (global MCP)"
 if ! command -v claude &>/dev/null; then
   warn "claude CLI not found — skipping Claude Code MCP setup."
   warn "Install Claude Code, then run:"
-  warn "  claude mcp add -s user serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-server --context claude-code --project-from-cwd"
+  warn "  claude mcp add -s user serena -- \$(which uvx) --from git+https://github.com/oraios/serena serena start-mcp-server --context claude-code --project-from-cwd"
 else
-  # Check if serena is already registered
-  if claude mcp list 2>/dev/null | grep -q "serena"; then
-    ok "Serena already registered in Claude Code global MCP."
+  if [[ -z "$UVX_PATH" ]]; then
+    warn "uvx not found in PATH — cannot register Claude Code MCP. Re-run after fixing PATH."
   else
+    # Remove stale entry (may have been registered with wrong path) then re-add
+    claude mcp remove serena 2>/dev/null || true
     claude mcp add -s user serena -- \
-      uvx --from git+https://github.com/oraios/serena \
+      "$UVX_PATH" --from git+https://github.com/oraios/serena \
       serena start-mcp-server \
       --context claude-code \
       --project-from-cwd
-    ok "Serena added to Claude Code global MCP."
+    ok "Serena added to Claude Code global MCP (uvx: $UVX_PATH)."
   fi
 fi
 
@@ -132,14 +136,15 @@ if [[ ! -d "$(dirname "$VSCODE_SETTINGS")" ]]; then
   warn "If VS Code is installed, manually merge: $REPO_DIR/templates/vscode-mcp-snippet.json"
   warn "into: $VSCODE_SETTINGS"
 else
-  # Use Python to safely merge the mcp.servers key into existing settings
-  python3 - "$VSCODE_SETTINGS" "$REPO_DIR/templates/vscode-mcp-snippet.json" <<'PYEOF'
+  # Use Python to safely merge the mcp.servers key into existing settings,
+  # substituting the resolved uvx path so Claude/IDEs don't need it in PATH.
+  python3 - "$VSCODE_SETTINGS" "$REPO_DIR/templates/vscode-mcp-snippet.json" "${UVX_PATH:-uvx}" <<'PYEOF'
 import json, sys, os
 
 settings_path = sys.argv[1]
 snippet_path  = sys.argv[2]
+uvx_path      = sys.argv[3]
 
-# Load or initialize settings
 if os.path.exists(settings_path):
     with open(settings_path) as f:
         try:
@@ -153,11 +158,14 @@ else:
 with open(snippet_path) as f:
     snippet = json.load(f)
 
-# Deep-merge mcp.servers so we don't clobber other MCP servers
+# Substitute resolved uvx path into the command field
+for server in snippet.get("mcp", {}).get("servers", {}).values():
+    if server.get("command") == "uvx":
+        server["command"] = uvx_path
+
 settings.setdefault("mcp", {}).setdefault("servers", {})
 settings["mcp"]["servers"].update(snippet["mcp"]["servers"])
 
-# Backup original
 if os.path.exists(settings_path):
     import shutil
     shutil.copy2(settings_path, settings_path + ".bak")
@@ -166,7 +174,7 @@ with open(settings_path, "w") as f:
     json.dump(settings, f, indent=2)
     f.write("\n")
 
-print(f"  [✓] Merged serena MCP entry into {settings_path}")
+print(f"  [✓] Merged serena MCP entry into {settings_path} (uvx: {uvx_path})")
 PYEOF
 fi
 
@@ -205,10 +213,11 @@ CURSOR_TEMPLATE="$REPO_DIR/templates/cursor-mcp.json"
 mkdir -p "$HOME/.cursor"
 
 if [[ -f "$CURSOR_MCP" ]]; then
-  # Merge serena entry without clobbering other servers
-  python3 - "$CURSOR_MCP" "$CURSOR_TEMPLATE" <<'PYEOF'
+  # Merge serena entry without clobbering other servers,
+  # substituting the resolved uvx path.
+  python3 - "$CURSOR_MCP" "$CURSOR_TEMPLATE" "${UVX_PATH:-uvx}" <<'PYEOF'
 import json, sys, os, shutil
-existing_path, template_path = sys.argv[1], sys.argv[2]
+existing_path, template_path, uvx_path = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(existing_path) as f:
     try:
         existing = json.load(f)
@@ -218,6 +227,10 @@ with open(existing_path) as f:
 with open(template_path) as f:
     template = json.load(f)
 
+for server in template.get("mcpServers", {}).values():
+    if server.get("command") == "uvx":
+        server["command"] = uvx_path
+
 existing.setdefault("mcpServers", {})
 existing["mcpServers"].update(template["mcpServers"])
 
@@ -225,11 +238,23 @@ shutil.copy2(existing_path, existing_path + ".bak")
 with open(existing_path, "w") as f:
     json.dump(existing, f, indent=2)
     f.write("\n")
-print(f"  [✓] Merged serena into {existing_path}")
+print(f"  [✓] Merged serena into {existing_path} (uvx: {uvx_path})")
 PYEOF
 else
-  cp "$CURSOR_TEMPLATE" "$CURSOR_MCP"
-  ok "Created $CURSOR_MCP"
+  # Write template with resolved uvx path directly
+  python3 - "$CURSOR_TEMPLATE" "$CURSOR_MCP" "${UVX_PATH:-uvx}" <<'PYEOF'
+import json, sys
+template_path, out_path, uvx_path = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(template_path) as f:
+    template = json.load(f)
+for server in template.get("mcpServers", {}).values():
+    if server.get("command") == "uvx":
+        server["command"] = uvx_path
+with open(out_path, "w") as f:
+    json.dump(template, f, indent=2)
+    f.write("\n")
+print(f"  [✓] Created {out_path} (uvx: {uvx_path})")
+PYEOF
 fi
 
 # -----------------------------------------------------------------------------
