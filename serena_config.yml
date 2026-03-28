@@ -1,0 +1,61 @@
+# Serena Global Configuration
+# Managed via: https://github.com/wwvuillemot/serena
+# Symlinked to: ~/.serena/serena_config.yml
+
+# Language backend: "language_servers" (default, works everywhere) or "JetBrains" (requires JetBrains IDE + plugin)
+language_backend: language_servers
+
+# Logging: "DEBUG", "INFO", "WARNING", "ERROR"
+log_level: INFO
+
+# Global ignore rules — patterns to exclude from all projects (gitignore-style)
+global_ignore_rules:
+  - "**/.git/**"
+  - "**/node_modules/**"
+  - "**/__pycache__/**"
+  - "**/.venv/**"
+  - "**/venv/**"
+  - "**/.mypy_cache/**"
+  - "**/.ruff_cache/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/.next/**"
+  - "**/.nuxt/**"
+  - "**/target/**"          # Rust/Java build output
+  - "**/*.pyc"
+  - "**/*.pyo"
+  - "**/*.class"
+  - "**/*.o"
+  - "**/*.a"
+  - "**/*.so"
+  - "**/*.dylib"
+
+# Language server specific settings
+# Uncomment and customize as needed per language
+ls_specific_settings:
+  python:
+    # Uses pylsp by default. To use pyright instead:
+    # ls_name: pyright
+    pass
+
+  typescript:
+    # Uses typescript-language-server
+    pass
+
+  go:
+    # Uses gopls — ensure it's installed: go install golang.org/x/tools/gopls@latest
+    pass
+
+  rust:
+    # Uses rust-analyzer — installed via rustup component add rust-analyzer
+    pass
+
+# Maximum number of symbols returned in search results (raise if needed for large codebases)
+max_symbols_in_response: 100
+
+# Tool-level timeouts (seconds)
+tool_timeout: 30
+
+# Controls whether the onboarding process runs automatically for new projects
+# Set to false to disable automatic onboarding
+auto_onboarding: true
