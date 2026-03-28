@@ -125,87 +125,112 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# 4. VS Code — merge MCP server into user settings.json
+# 4. VS Code — write to dedicated mcp.json (settings.json is deprecated)
 # -----------------------------------------------------------------------------
-section "VS Code (user settings)"
+section "VS Code (user mcp.json)"
 
-vscode_settings_path() {
+vscode_user_dir() {
   case "$OS" in
-    macos) echo "$HOME/Library/Application Support/Code/User/settings.json" ;;
-    wsl)   echo "$HOME/.config/Code/User/settings.json" ;;
-    linux) echo "$HOME/.config/Code/User/settings.json" ;;
+    macos) echo "$HOME/Library/Application Support/Code/User" ;;
+    *)     echo "$HOME/.config/Code/User" ;;
   esac
 }
 
-VSCODE_SETTINGS="$(vscode_settings_path)"
+VSCODE_USER_DIR="$(vscode_user_dir)"
+VSCODE_MCP="$VSCODE_USER_DIR/mcp.json"
+VSCODE_SETTINGS="$VSCODE_USER_DIR/settings.json"
 
-if [[ ! -d "$(dirname "$VSCODE_SETTINGS")" ]]; then
+if [[ ! -d "$VSCODE_USER_DIR" ]]; then
   warn "VS Code user directory not found — skipping VS Code setup."
-  warn "If VS Code is installed, manually merge: $REPO_DIR/templates/vscode-mcp-snippet.json"
-  warn "into: $VSCODE_SETTINGS"
+  warn "If VS Code is installed, copy: $REPO_DIR/templates/vscode-mcp-snippet.json"
+  warn "to: $VSCODE_MCP"
 else
-  # Use Python to safely merge the mcp.servers key into existing settings,
-  # substituting the resolved uvx path so Claude/IDEs don't need it in PATH.
-  python3 - "$VSCODE_SETTINGS" "$REPO_DIR/templates/vscode-mcp-snippet.json" "${UVX_PATH:-uvx}" <<'PYEOF'
-import json, sys, os
+  python3 - "$VSCODE_MCP" "$REPO_DIR/templates/vscode-mcp-snippet.json" "${UVX_PATH:-uvx}" <<'PYEOF'
+import json, sys, os, shutil
 
-settings_path = sys.argv[1]
-snippet_path  = sys.argv[2]
-uvx_path      = sys.argv[3]
+mcp_path    = sys.argv[1]
+snippet_path = sys.argv[2]
+uvx_path    = sys.argv[3]
 
-if os.path.exists(settings_path):
-    with open(settings_path) as f:
+existing = {}
+if os.path.exists(mcp_path):
+    with open(mcp_path) as f:
         try:
-            settings = json.load(f)
+            existing = json.load(f)
         except json.JSONDecodeError:
-            print(f"  [!] Could not parse {settings_path} — skipping VS Code setup.")
-            sys.exit(0)
-else:
-    settings = {}
+            pass
+    shutil.copy2(mcp_path, mcp_path + ".bak")
 
 with open(snippet_path) as f:
     snippet = json.load(f)
 
-# Substitute resolved uvx path into the command field
-for server in snippet.get("mcp", {}).get("servers", {}).values():
+# Substitute resolved uvx path
+for server in snippet.get("servers", {}).values():
     if server.get("command") == "uvx":
         server["command"] = uvx_path
 
-settings.setdefault("mcp", {}).setdefault("servers", {})
-settings["mcp"]["servers"].update(snippet["mcp"]["servers"])
+existing.setdefault("servers", {}).update(snippet["servers"])
 
-if os.path.exists(settings_path):
-    import shutil
-    shutil.copy2(settings_path, settings_path + ".bak")
-
-with open(settings_path, "w") as f:
-    json.dump(settings, f, indent=2)
+with open(mcp_path, "w") as f:
+    json.dump(existing, f, indent=2)
     f.write("\n")
 
-print(f"  [✓] Merged serena MCP entry into {settings_path} (uvx: {uvx_path})")
+print(f"  [✓] Wrote serena to {mcp_path} (uvx: {uvx_path})")
 PYEOF
+
+  # Clean up stale mcp.servers entry from settings.json if present
+  if [[ -f "$VSCODE_SETTINGS" ]]; then
+    python3 - "$VSCODE_SETTINGS" <<'PYEOF'
+import json, sys, os, shutil
+path = sys.argv[1]
+with open(path) as f:
+    try:
+        s = json.load(f)
+    except json.JSONDecodeError:
+        sys.exit(0)
+mcp = s.get("mcp", {})
+servers = mcp.get("servers", {})
+if "serena" in servers:
+    del servers["serena"]
+    if not servers:
+        mcp.pop("servers", None)
+    if not mcp:
+        s.pop("mcp", None)
+    shutil.copy2(path, path + ".bak")
+    with open(path, "w") as f:
+        json.dump(s, f, indent=2)
+        f.write("\n")
+    print(f"  [✓] Removed stale serena entry from settings.json")
+PYEOF
+  fi
 fi
 
-# WSL note: if using VS Code Remote-WSL the settings live on the Windows side
+# WSL note: if using VS Code Remote-WSL the mcp.json lives on the Windows side
 if [[ "$OS" == "wsl" ]]; then
   WIN_APPDATA="${APPDATA:-/mnt/c/Users/$USER/AppData/Roaming}"
-  WIN_VSCODE="$WIN_APPDATA/Code/User/settings.json"
-  if [[ -f "$WIN_VSCODE" ]]; then
-    info "WSL detected: also updating Windows-side VS Code settings..."
-    python3 - "$WIN_VSCODE" "$REPO_DIR/templates/vscode-mcp-snippet.json" <<'PYEOF'
+  WIN_MCP="$WIN_APPDATA/Code/User/mcp.json"
+  WIN_SETTINGS="$WIN_APPDATA/Code/User/settings.json"
+  if [[ -d "$(dirname "$WIN_MCP")" ]]; then
+    info "WSL detected: also updating Windows-side VS Code mcp.json..."
+    python3 - "$WIN_MCP" "$REPO_DIR/templates/vscode-mcp-snippet.json" "${UVX_PATH:-uvx}" <<'PYEOF'
 import json, sys, os, shutil
-settings_path, snippet_path = sys.argv[1], sys.argv[2]
-with open(settings_path) as f:
-    settings = json.load(f)
+mcp_path, snippet_path, uvx_path = sys.argv[1], sys.argv[2], sys.argv[3]
+existing = {}
+if os.path.exists(mcp_path):
+    with open(mcp_path) as f:
+        try: existing = json.load(f)
+        except: pass
+    shutil.copy2(mcp_path, mcp_path + ".bak")
 with open(snippet_path) as f:
     snippet = json.load(f)
-settings.setdefault("mcp", {}).setdefault("servers", {})
-settings["mcp"]["servers"].update(snippet["mcp"]["servers"])
-shutil.copy2(settings_path, settings_path + ".bak")
-with open(settings_path, "w") as f:
-    json.dump(settings, f, indent=2)
+for server in snippet.get("servers", {}).values():
+    if server.get("command") == "uvx":
+        server["command"] = uvx_path
+existing.setdefault("servers", {}).update(snippet["servers"])
+with open(mcp_path, "w") as f:
+    json.dump(existing, f, indent=2)
     f.write("\n")
-print(f"  [✓] Merged into Windows VS Code: {settings_path}")
+print(f"  [✓] Wrote serena to {mcp_path}")
 PYEOF
   fi
 fi

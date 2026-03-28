@@ -71,20 +71,20 @@ check: ## Verify Serena is wired up correctly across all clients
 		echo "  [!] ~/.cursor/mcp.json not found (Cursor not installed?)"; \
 	fi
 	@echo
-	@echo "── VS Code (user settings.json) ────────────────────"
-	@VSCODE_SETTINGS=""; \
+	@echo "── VS Code (user mcp.json) ─────────────────────────"
+	@VSCODE_MCP=""; \
 	if [[ "$$(uname)" == "Darwin" ]]; then \
-		VSCODE_SETTINGS="$(HOME)/Library/Application Support/Code/User/settings.json"; \
+		VSCODE_MCP="$(HOME)/Library/Application Support/Code/User/mcp.json"; \
 	else \
-		VSCODE_SETTINGS="$(HOME)/.config/Code/User/settings.json"; \
+		VSCODE_MCP="$(HOME)/.config/Code/User/mcp.json"; \
 	fi; \
-	if [[ -f "$$VSCODE_SETTINGS" ]] && python3 -c \
-		"import json; d=json.load(open('$$VSCODE_SETTINGS')); exit(0 if 'serena' in d.get('mcp',{}).get('servers',{}) else 1)" 2>/dev/null; then \
-		echo "  [✓] serena present in VS Code settings.json"; \
-	elif [[ -f "$$VSCODE_SETTINGS" ]]; then \
-		echo "  [✗] serena missing from VS Code settings — run: make setup"; \
+	if [[ -f "$$VSCODE_MCP" ]] && python3 -c \
+		"import json; d=json.load(open('$$VSCODE_MCP')); exit(0 if 'serena' in d.get('servers',{}) else 1)" 2>/dev/null; then \
+		echo "  [✓] serena present in VS Code mcp.json"; \
+	elif [[ -f "$$VSCODE_MCP" ]]; then \
+		echo "  [✗] serena missing from VS Code mcp.json — run: make setup"; \
 	else \
-		echo "  [!] VS Code settings.json not found"; \
+		echo "  [!] VS Code mcp.json not found — run: make setup"; \
 	fi
 	@echo
 
