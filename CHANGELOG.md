@@ -12,6 +12,17 @@ make update VERSION=v0.5.1
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-04-24
+
+### Added
+- **CI**: ShellCheck workflow (`.github/workflows/ci.yml`) runs on every push to `main`, PR, and tag starting with `v`. Uses `severity: warning` — real bugs surface, style-only findings stay quiet.
+- **LICENSE**: MIT.
+- README badges: CI status, latest release, license.
+- "License" section at the bottom of the README noting that bundled tools retain their own licenses.
+
+### Fixed
+- Removed dead variable `WIN_SETTINGS` in `install.sh` — leftover from the v0.1.0 VS Code `settings.json` → `mcp.json` migration. Surfaced by ShellCheck (SC2034).
+
 ## [0.5.1] - 2026-04-24
 
 ### Added
@@ -85,7 +96,8 @@ make update VERSION=v0.5.1
 ### Changed
 - Troubleshooting section updated for the VS Code MCP deprecation warning.
 
-[Unreleased]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.3.1...v0.4.0

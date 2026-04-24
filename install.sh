@@ -298,7 +298,6 @@ fi
 if [[ "$OS" == "wsl" ]]; then
   WIN_APPDATA="$(win_appdata)"
   WIN_MCP="$WIN_APPDATA/Code/User/mcp.json"
-  WIN_SETTINGS="$WIN_APPDATA/Code/User/settings.json"
   if [[ -d "$(dirname "$WIN_MCP")" ]]; then
     info "WSL detected: also updating Windows-side VS Code mcp.json..."
     python3 - "$WIN_MCP" "$REPO_DIR/templates/vscode-mcp-snippet.json" "${UVX_PATH:-uvx}" <<'PYEOF'

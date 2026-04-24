@@ -1,5 +1,9 @@
 # dev-ai-tools
 
+[![CI](https://github.com/wwvuillemot/dev-ai-tools/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wwvuillemot/dev-ai-tools/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wwvuillemot/dev-ai-tools?sort=semver)](https://github.com/wwvuillemot/dev-ai-tools/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 A curated bundle of CLI tools that improve the developer experience when working with AI coding agents. One idempotent `make setup` installs and wires each, across macOS, Linux, and WSL.
 
 **What's included:**
@@ -348,3 +352,9 @@ Expected on first run — `uvx` downloads and caches Serena. `make setup` pre-ca
 
 **RTK**
 - [rtk-ai/rtk on GitHub](https://github.com/rtk-ai/rtk)
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE). Third-party tools (Serena, Graphify, RTK, language servers) retain their own licenses; this repository only installs and wires them.
