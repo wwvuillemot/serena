@@ -210,6 +210,55 @@ lint: ## Run ShellCheck on all shell scripts (same as CI)
 	@shellcheck --severity=warning install.sh bin/dev-ai-tools scripts/*.sh
 	@echo "  [✓] ShellCheck clean."
 
+.PHONY: preflight
+preflight: ## Pre-push checks: working tree + lint + remote sync + unpushed tags
+	@echo
+	@echo "── Preflight: working tree ─────────────────────────"
+	@if [[ -n "$$(git -C $(REPO_DIR) status --porcelain)" ]]; then \
+		echo "  [✗] Uncommitted changes — commit or stash before pushing:"; \
+		git -C $(REPO_DIR) status --short | sed 's/^/      /'; \
+		exit 1; \
+	else \
+		echo "  [✓] Clean"; \
+	fi
+	@echo
+	@echo "── Preflight: ShellCheck ───────────────────────────"
+	@$(MAKE) --no-print-directory lint
+	@echo
+	@echo "── Preflight: remote sync ──────────────────────────"
+	@git -C $(REPO_DIR) fetch --quiet origin
+	@LOCAL=$$(git -C $(REPO_DIR) rev-parse @); \
+	REMOTE=$$(git -C $(REPO_DIR) rev-parse @{u} 2>/dev/null || echo ""); \
+	BASE=$$(git -C $(REPO_DIR) merge-base @ @{u} 2>/dev/null || echo ""); \
+	if [[ -z "$$REMOTE" ]]; then \
+		echo "  [!] No upstream tracking branch — set with: git branch -u origin/<branch>"; \
+	elif [[ "$$LOCAL" == "$$REMOTE" ]]; then \
+		echo "  [✓] In sync with origin"; \
+	elif [[ "$$LOCAL" == "$$BASE" ]]; then \
+		echo "  [✗] Local is behind origin — 'git pull' first."; \
+		exit 1; \
+	elif [[ "$$REMOTE" == "$$BASE" ]]; then \
+		N=$$(git -C $(REPO_DIR) rev-list --count @{u}..@); \
+		echo "  [✓] Local is ahead of origin by $$N commit(s) — ready to push"; \
+	else \
+		echo "  [✗] Local and origin have diverged — resolve before pushing."; \
+		exit 1; \
+	fi
+	@echo
+	@echo "── Preflight: unpushed tags ────────────────────────"
+	@LOCAL_TAGS=$$(git -C $(REPO_DIR) tag -l 'v*' | sort); \
+	REMOTE_TAGS=$$(git -C $(REPO_DIR) ls-remote --tags origin 'v*' 2>/dev/null | awk '{print $$2}' | sed 's|refs/tags/||; s|\^{}||' | sort -u); \
+	UNPUSHED=$$(comm -23 <(echo "$$LOCAL_TAGS") <(echo "$$REMOTE_TAGS")); \
+	if [[ -z "$$UNPUSHED" ]]; then \
+		echo "  [✓] All local tags are on origin"; \
+	else \
+		echo "  [!] Unpushed local tags (push with 'git push --tags origin'):"; \
+		echo "$$UNPUSHED" | sed 's/^/        /'; \
+	fi
+	@echo
+	@echo "  [✓] Preflight complete."
+	@echo
+
 .PHONY: help
 help: ## Show this help
 	@echo

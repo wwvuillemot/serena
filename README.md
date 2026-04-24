@@ -52,6 +52,7 @@ make setup
 | `make update` | Update to latest on `main` and re-run `make setup` — pass `VERSION=<tag>` to pin to a release (e.g. `make update VERSION=v0.5.0`) |
 | `make check` | Verify Serena, Graphify, and RTK are correctly wired in all detected clients |
 | `make lint` | Run ShellCheck locally against all shell scripts (same config as CI) |
+| `make preflight` | Pre-push checks: working tree clean, lint passes, in sync with origin, no unpushed tags |
 | `make cache-clean` | Force `uvx` to re-download Serena on next use |
 | `make help` | Show all targets |
 

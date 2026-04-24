@@ -12,6 +12,12 @@ make update VERSION=v0.5.1
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-04-24
+
+### Added
+- `make preflight` target for pre-push QA. Checks: (1) working tree clean, (2) `make lint` passes, (3) local branch is in sync with (or ahead of) `origin`, (4) all local tags are pushed. Treats lint failures, divergence, and "behind origin" as blocking; unpushed tags print a warning rather than blocking.
+- `make preflight` documented in the Commands table.
+
 ## [0.5.3] - 2026-04-24
 
 ### Added
@@ -101,7 +107,8 @@ make update VERSION=v0.5.1
 ### Changed
 - Troubleshooting section updated for the VS Code MCP deprecation warning.
 
-[Unreleased]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.0...v0.5.1
