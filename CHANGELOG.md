@@ -12,6 +12,11 @@ make update VERSION=v0.5.1
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-04-24
+
+### Added
+- `make lint` target runs ShellCheck locally with the same `severity=warning` config as CI, so you can catch lint findings before pushing. Exits with a clear hint if ShellCheck isn't installed.
+
 ## [0.5.2] - 2026-04-24
 
 ### Added
@@ -96,7 +101,8 @@ make update VERSION=v0.5.1
 ### Changed
 - Troubleshooting section updated for the VS Code MCP deprecation warning.
 
-[Unreleased]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/wwvuillemot/dev-ai-tools/compare/v0.4.0...v0.5.0

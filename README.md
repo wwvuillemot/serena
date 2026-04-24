@@ -51,6 +51,7 @@ make setup
 | `make setup-project PATH=…` | Add `.serena/project.yml` to one project |
 | `make update` | Update to latest on `main` and re-run `make setup` — pass `VERSION=<tag>` to pin to a release (e.g. `make update VERSION=v0.5.0`) |
 | `make check` | Verify Serena, Graphify, and RTK are correctly wired in all detected clients |
+| `make lint` | Run ShellCheck locally against all shell scripts (same config as CI) |
 | `make cache-clean` | Force `uvx` to re-download Serena on next use |
 | `make help` | Show all targets |
 

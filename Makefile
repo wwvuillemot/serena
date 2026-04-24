@@ -200,6 +200,16 @@ cache-clean: ## Force uvx to re-download Serena on next use
 	@uvx cache clean
 	@echo "  [✓] uvx cache cleared — Serena will re-download on next use"
 
+.PHONY: lint
+lint: ## Run ShellCheck on all shell scripts (same as CI)
+	@if ! command -v shellcheck >/dev/null 2>&1; then \
+		echo "  [✗] shellcheck not found. Install with:  brew install shellcheck  (or your package manager)"; \
+		exit 1; \
+	fi
+	@echo "  [·] ShellCheck (severity=warning)..."
+	@shellcheck --severity=warning install.sh bin/dev-ai-tools scripts/*.sh
+	@echo "  [✓] ShellCheck clean."
+
 .PHONY: help
 help: ## Show this help
 	@echo
