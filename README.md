@@ -9,6 +9,7 @@ A curated bundle of CLI tools that improve the developer experience when working
 - **[RTK](https://github.com/rtk-ai/rtk)** — "Rust Token Killer," a CLI proxy that filters and compresses command output to cut LLM token usage by 60–90% on common dev commands.
 
 > 👉 **[USING.md](./USING.md)** — practical guide for verifying and leveraging each tool in an AI-coding session.
+> 📓 **[CHANGELOG.md](./CHANGELOG.md)** — release notes. Pin to a specific release with `make update VERSION=vX.Y.Z`.
 
 ## Quick start
 
@@ -44,7 +45,7 @@ make setup
 | `make uninstall-cli` | Remove the `dev-ai-tools` symlink |
 | `make setup-projects` | Add `.serena/project.yml` to every project under `~/Projects` |
 | `make setup-project PATH=…` | Add `.serena/project.yml` to one project |
-| `make update` | Pull latest changes and re-run `make setup` |
+| `make update` | Update to latest on `main` and re-run `make setup` — pass `VERSION=<tag>` to pin to a release (e.g. `make update VERSION=v0.5.0`) |
 | `make check` | Verify Serena, Graphify, and RTK are correctly wired in all detected clients |
 | `make cache-clean` | Force `uvx` to re-download Serena on next use |
 | `make help` | Show all targets |

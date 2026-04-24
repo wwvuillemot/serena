@@ -76,8 +76,20 @@ uninstall-cli: ## Remove the dev-ai-tools symlink from $(DEV_AI_TOOLS_BIN)
 # ─── Maintenance ──────────────────────────────────────────────────────────────
 
 .PHONY: update
-update: ## Pull latest config changes and re-run setup
+update: ## Update to latest on main (default) or a specific tag, then re-run setup (usage: make update [VERSION=v0.5.0])
+	@if [[ -n "$$(git -C $(REPO_DIR) status --porcelain)" ]]; then \
+		echo "  [✗] $(REPO_DIR) has uncommitted changes — commit or stash first."; \
+		exit 1; \
+	fi
+ifneq ($(VERSION),)
+	@echo "  [·] Updating dev-ai-tools to $(VERSION)..."
+	@git -C $(REPO_DIR) fetch --tags --quiet
+	@git -C $(REPO_DIR) checkout "$(VERSION)"
+else
+	@echo "  [·] Updating dev-ai-tools to latest on main..."
+	@git -C $(REPO_DIR) checkout main --quiet
 	@git -C $(REPO_DIR) pull --ff-only
+endif
 	@$(MAKE) setup
 
 .PHONY: check
@@ -199,4 +211,5 @@ help: ## Show this help
 	@echo "  PROJECTS_ROOT      Root directory scanned by setup-projects (default: ~/Projects)"
 	@echo "  PATH               Project path for setup-project target"
 	@echo "  DEV_AI_TOOLS_BIN   Where install-cli symlinks the wrapper (default: ~/.local/bin)"
+	@echo "  VERSION            Git tag to check out for 'make update' (default: latest on main)"
 	@echo
